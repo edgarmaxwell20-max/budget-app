@@ -36,7 +36,9 @@ let store = loadStore();
 let cursor = new Date();
 
 function ensureMonth(key) {
-  store.months[key] ||= { income: 0, savings: 0, tx: [] };
+  store.months[key] ||= { income: 0, savings: 0, startBal: 0, tx: [] };
+  // Back-compat for existing stored months
+  if (store.months[key].startBal === undefined) store.months[key].startBal = 0;
   return store.months[key];
 }
 
@@ -75,16 +77,21 @@ function renderPlan() {
   const month = ensureMonth(key);
   $('income').value = month.income || '';
   $('savings').value = month.savings || '';
+  $('startBal').value = month.startBal || '';
 
   const { expenses, incomeTx } = monthTotals(month);
-  const totalIncome = Number(month.income || 0) + incomeTx;
-  const remaining = totalIncome - expenses - Number(month.savings || 0);
+  const plannedIncome = Number(month.income || 0);
+  const startBal = Number(month.startBal || 0);
+  const savings = Number(month.savings || 0);
+
+  // Projection based on actual transactions so far (not budgets)
+  const projected = startBal + plannedIncome + incomeTx - expenses - savings;
 
   const pills = [
-    { k: 'Planned income', v: fmt(month.income || 0) },
-    { k: 'Txn income', v: fmt(incomeTx) },
-    { k: 'Expenses (spent)', v: fmt(expenses) },
-    { k: 'Remaining (after savings)', v: fmt(remaining), tone: remaining >= 0 ? 'good' : 'bad' },
+    { k: 'Starting balance', v: fmt(startBal) },
+    { k: 'Planned income', v: fmt(plannedIncome) },
+    { k: 'Spent so far', v: fmt(expenses) },
+    { k: 'Projected end balance', v: fmt(projected), tone: projected >= 0 ? 'good' : 'bad' },
   ];
 
   $('planSummary').innerHTML = `
@@ -99,6 +106,130 @@ function renderPlan() {
         )
         .join('')}
     </div>`;
+}
+
+function plannedBudgetTotal() {
+  return store.categories.reduce((s, c) => s + (Number(c.budget) || 0), 0);
+}
+
+function renderWaterfall() {
+  const key = ymKey(cursor);
+  const month = ensureMonth(key);
+
+  const startBal = Number(month.startBal || 0);
+  const inc = Number(month.income || 0);
+  const budgets = plannedBudgetTotal();
+  const sav = Number(month.savings || 0);
+  const end = startBal + inc - budgets - sav;
+
+  const steps = [
+    { label: 'Start', type: 'total', value: startBal },
+    { label: 'Income', type: 'delta', value: inc },
+    { label: 'Budgets', type: 'delta', value: -budgets },
+    { label: 'Savings', type: 'delta', value: -sav },
+    { label: 'End (forecast)', type: 'total', value: end },
+  ];
+
+  $('wfEndBadge').textContent = `Forecast end: ${fmt(end)}`;
+  $('waterfall').innerHTML = buildWaterfallSVG(steps);
+}
+
+function buildWaterfallSVG(steps) {
+  // Compute cumulative ranges for each bar
+  const bars = [];
+  let cum = 0;
+  for (let i = 0; i < steps.length; i++) {
+    const s = steps[i];
+    if (s.type === 'total') {
+      const start = 0;
+      const end = s.value;
+      cum = s.value;
+      bars.push({ ...s, start, end, delta: end - start, isTotal: true });
+    } else {
+      const start = cum;
+      const end = cum + s.value;
+      cum = end;
+      bars.push({ ...s, start, end, delta: s.value, isTotal: false });
+    }
+  }
+
+  const minV = Math.min(0, ...bars.map((b) => Math.min(b.start, b.end)));
+  const maxV = Math.max(0, ...bars.map((b) => Math.max(b.start, b.end)));
+  const pad = (maxV - minV) * 0.12 || 100;
+  const yMin = minV - pad;
+  const yMax = maxV + pad;
+
+  const W = 980;
+  const H = 320;
+  const margin = { t: 22, r: 18, b: 70, l: 64 };
+  const plotW = W - margin.l - margin.r;
+  const plotH = H - margin.t - margin.b;
+  const n = bars.length;
+  const gap = 16;
+  const barW = (plotW - gap * (n - 1)) / n;
+
+  const y = (v) => margin.t + (yMax - v) * (plotH / (yMax - yMin));
+  const y0 = y(0);
+
+  const ticks = 4;
+  const tickVals = Array.from({ length: ticks + 1 }, (_, i) => yMin + (i * (yMax - yMin)) / ticks);
+
+  const rects = bars
+    .map((b, i) => {
+      const x = margin.l + i * (barW + gap);
+      const top = y(Math.max(b.start, b.end));
+      const bot = y(Math.min(b.start, b.end));
+      const h = Math.max(1, bot - top);
+
+      const up = b.delta >= 0;
+      const fill = b.isTotal ? 'rgba(255,255,255,.16)' : up ? 'rgba(34,197,94,.70)' : 'rgba(239,68,68,.70)';
+      const stroke = 'rgba(255,255,255,.18)';
+
+      const label = `${b.label}`;
+      const deltaLabel = b.isTotal ? fmt(b.end) : (b.delta >= 0 ? '+' : '−') + fmt(Math.abs(b.delta));
+
+      // connector line from previous end to next start
+      const prev = bars[i - 1];
+      const conn = !prev
+        ? ''
+        : `<line x1="${x - gap}" y1="${y(prev.end)}" x2="${x}" y2="${y(b.start)}" stroke="rgba(255,255,255,.20)" stroke-dasharray="4 4" />`;
+
+      return `
+        ${conn}
+        <rect x="${x}" y="${top}" width="${barW}" height="${h}" rx="12" fill="${fill}" stroke="${stroke}" />
+        <text class="wfText" x="${x + barW / 2}" y="${Math.min(top + 16, H - margin.b - 6)}" text-anchor="middle">${escapeSvg(deltaLabel)}</text>
+        <text class="wfAxis" x="${x + barW / 2}" y="${H - 36}" text-anchor="middle">${escapeSvg(label)}</text>
+      `;
+    })
+    .join('');
+
+  const axes = `
+    <g class="wfAxis">
+      ${tickVals
+        .map((tv) => {
+          const yy = y(tv);
+          return `
+            <line x1="${margin.l}" y1="${yy}" x2="${W - margin.r}" y2="${yy}" stroke="rgba(255,255,255,.10)" />
+            <text x="${margin.l - 10}" y="${yy + 4}" text-anchor="end">${escapeSvg(fmt(tv))}</text>`;
+        })
+        .join('')}
+      <line x1="${margin.l}" y1="${y0}" x2="${W - margin.r}" y2="${y0}" stroke="rgba(255,255,255,.22)" />
+    </g>`;
+
+  return `
+    <svg class="wfSvg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Monthly budget waterfall chart">
+      ${axes}
+      ${rects}
+    </svg>`;
+}
+
+function escapeSvg(s) {
+  return String(s)
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#039;');
 }
 
 function renderCatSelect() {
@@ -251,6 +382,7 @@ function escapeHtml(s) {
 function renderAll() {
   setMonthLabel();
   renderPlan();
+  renderWaterfall();
   renderCatSelect();
   renderCats();
   renderTx();
@@ -270,6 +402,14 @@ function wire() {
     const key = ymKey(cursor);
     const month = ensureMonth(key);
     month.savings = Number($('savings').value || 0);
+    saveStore(store);
+    renderAll();
+  });
+
+  $('startBal').addEventListener('change', () => {
+    const key = ymKey(cursor);
+    const month = ensureMonth(key);
+    month.startBal = Number($('startBal').value || 0);
     saveStore(store);
     renderAll();
   });
