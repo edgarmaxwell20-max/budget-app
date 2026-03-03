@@ -48,7 +48,7 @@ input:focus,select:focus{border-color:rgba(59,130,246,.6);box-shadow:0 0 0 3px r
 #waterfall{width:100%}
 #wfEndBadge{display:inline-block}
 .wfSvg{width:100%;height:auto;display:block;border-radius:14px;border:1px solid var(--line);background:rgba(0,0,0,.10)}
-.wfAxis text{fill:var(--muted);font-size:11px}
+.wfAxis text{fill:var(--text);font-size:11px}
 .wfText{fill:var(--text);font-size:11px}
 
 @media (max-width: 920px){.grid{grid-template-columns:1fr}.summary{grid-template-columns:1fr 1fr}.row{flex-wrap:wrap;align-items:stretch}}
