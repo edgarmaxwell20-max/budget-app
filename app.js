@@ -75,9 +75,12 @@ function monthTotals(month) {
 function renderPlan() {
   const key = ymKey(cursor);
   const month = ensureMonth(key);
-  $('income').value = month.income || '';
-  $('savings').value = month.savings || '';
-  $('startBal').value = month.startBal || '';
+  const incomeEl = $('income');
+  const savingsEl = $('savings');
+  const startEl = $('startBal');
+  if (document.activeElement !== incomeEl) incomeEl.value = month.income || '';
+  if (document.activeElement !== savingsEl) savingsEl.value = month.savings || '';
+  if (document.activeElement !== startEl) startEl.value = month.startBal || '';
 
   const { expenses, incomeTx } = monthTotals(month);
   const plannedIncome = Number(month.income || 0);
@@ -391,14 +394,14 @@ function renderAll() {
 function wire() {
   $('txDate').value = todayISO();
 
-  $('income').addEventListener('change', () => {
+  $('income').addEventListener('input', () => {
     const key = ymKey(cursor);
     const month = ensureMonth(key);
     month.income = Number($('income').value || 0);
     saveStore(store);
     renderAll();
   });
-  $('savings').addEventListener('change', () => {
+  $('savings').addEventListener('input', () => {
     const key = ymKey(cursor);
     const month = ensureMonth(key);
     month.savings = Number($('savings').value || 0);
@@ -406,7 +409,7 @@ function wire() {
     renderAll();
   });
 
-  $('startBal').addEventListener('change', () => {
+  $('startBal').addEventListener('input', () => {
     const key = ymKey(cursor);
     const month = ensureMonth(key);
     month.startBal = Number($('startBal').value || 0);
