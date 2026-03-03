@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Budget — Simple</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">
+      <div class="logo">B</div>
+      <div>
+        <div class="title">Budget</div>
+        <div class="subtitle" id="monthLabel"></div>
+      </div>
+    </div>
+    <div class="topbar-actions">
+      <button class="btn btn-ghost" id="prevMonth">←</button>
+      <button class="btn btn-ghost" id="nextMonth">→</button>
+      <button class="btn" id="exportBtn">Export CSV</button>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="grid">
+      <div class="card">
+        <h2>Monthly Plan</h2>
+        <div class="row">
+          <label class="field">
+            <span>Income (after tax)</span>
+            <input inputmode="decimal" type="number" step="0.01" id="income" placeholder="6000" />
+          </label>
+          <label class="field">
+            <span>Savings target</span>
+            <input inputmode="decimal" type="number" step="0.01" id="savings" placeholder="1000" />
+          </label>
+        </div>
+        <div class="summary" id="planSummary"></div>
+      </div>
+
+      <div class="card">
+        <h2>Categories</h2>
+        <form id="catForm" class="row">
+          <label class="field grow">
+            <span>Name</span>
+            <input id="catName" placeholder="Groceries" autocomplete="off" />
+          </label>
+          <label class="field">
+            <span>Budget</span>
+            <input inputmode="decimal" type="number" step="0.01" id="catBudget" placeholder="500" />
+          </label>
+          <button class="btn" type="submit">Add</button>
+        </form>
+        <div class="table" id="catsTable"></div>
+      </div>
+
+      <div class="card">
+        <h2>Add Transaction</h2>
+        <form id="txForm" class="stack">
+          <div class="row">
+            <label class="field grow">
+              <span>Description</span>
+              <input id="txDesc" placeholder="Kroger" autocomplete="off" />
+            </label>
+            <label class="field">
+              <span>Amount</span>
+              <input inputmode="decimal" type="number" step="0.01" id="txAmt" placeholder="-87.42" />
+            </label>
+          </div>
+          <div class="row">
+            <label class="field grow">
+              <span>Category</span>
+              <select id="txCat"></select>
+            </label>
+            <label class="field">
+              <span>Date</span>
+              <input type="date" id="txDate" />
+            </label>
+            <button class="btn" type="submit">Add</button>
+          </div>
+          <p class="hint">Tip: use negative amounts for expenses, positive for refunds/side income.</p>
+        </form>
+      </div>
+
+      <div class="card span-2">
+        <div class="card-head">
+          <h2>Transactions</h2>
+          <div class="card-actions">
+            <button class="btn btn-ghost" id="clearMonth">Clear this month</button>
+          </div>
+        </div>
+        <div class="table" id="txTable"></div>
+      </div>
+    </section>
+
+    <footer class="foot">
+      <div>Data is stored locally in your browser (localStorage). No server required.</div>
+    </footer>
+  </main>
+
+  <script src="app.js"></script>
+</body>
+</html>
